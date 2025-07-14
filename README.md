@@ -1,1 +1,1 @@
-# mensa-ai
+# Mensa AI
