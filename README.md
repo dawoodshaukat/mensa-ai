@@ -15,7 +15,7 @@ Mensa AI is an intelligent personal assistant designed to help you optimize your
 
 ## 🌱 Philosophy
 
-Mensa is built on the belief that **skills matter more than degrees**. It's a mission-driven project to empower learners from all backgrounds — especially those outside traditional education systems.
+It's a mission-driven project to empower learners from all backgrounds — especially those outside traditional education systems.
 
 ## 📦 Tech Stack (Planned)
 
