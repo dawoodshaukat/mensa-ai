@@ -1,34 +1,26 @@
-
-# Add project root to sys.path for clean imports
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-from src.utils.reminders import check_streak_break, check_pending_tasks, check_inactivity, notify_user
- 
-
+# --- Add sys.path for absolute 'src' imports ---
 import sys
 import os
 import json
-import importlib.util
 from datetime import datetime, timedelta
 
- 
-#   DYNAMIC PLANNER IMPORT
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-core_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'core'))
-planner_path = os.path.join(core_dir, 'planner.py')
-spec = importlib.util.spec_from_file_location('planner', planner_path)
-planner = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(planner)
-get_today_plan = planner.get_today_plan
-add_or_update_today_plan = planner.add_or_update_today_plan
-mark_today_tasks_done = planner.mark_today_tasks_done
-get_weekly_summary = planner.get_weekly_summary
-get_plan_by_date = planner.get_plan_by_date
-
-
-#   COMMAND DESCRIPTIONS
+# --- src module imports ---
+from src.utils.reminders import check_streak_break, check_pending_tasks, check_inactivity, notify_user
+from src.core.session import (
+    load_session,
+    save_session,
+    update_last_active,
+    update_streak,
+    update_today_plan
+)
+from src.core.planner import (
+    get_today_plan,
+    add_or_update_today_plan,
+    mark_today_tasks_done,
+    get_weekly_summary
+)
 
 help_texts = {
     "start": "Initialize or reset your Mensa session.",
@@ -41,17 +33,12 @@ help_texts = {
     "help": "Usage: help <command> — Show help for a specific command."
 }
 
-
-#   STREAK CALCULATION
-
 def get_combined_streak():
-    """Calculate the streak of consecutive days with either a journal or plan entry."""
     memory_dir = os.path.join("memory")
     journal_path = os.path.join(memory_dir, "journal.json")
     plan_path = os.path.join(memory_dir, "daily_plan.json")
     dates = set()
 
-    # Collect dates from journal
     if os.path.exists(journal_path):
         try:
             with open(journal_path, "r", encoding="utf-8") as f:
@@ -67,7 +54,6 @@ def get_combined_streak():
         except Exception:
             pass
 
-    # Collect dates from plan
     if os.path.exists(plan_path):
         try:
             with open(plan_path, "r", encoding="utf-8") as f:
@@ -91,24 +77,18 @@ def get_combined_streak():
     missed = False
     current = today
 
-    # Check for consecutive days
     while True:
         if current in dates:
             streak += 1
-            current = current - timedelta(days=1)
+            current -= timedelta(days=1)
         else:
-            # If we missed today, warn only if there was activity before
             if streak == 0 and (current - timedelta(days=1)) in dates:
                 missed = True
             break
 
     return streak, missed
 
-
-#   JOURNAL COMMAND
-
 def journal():
-    """Prompt user for a journal entry and save it."""
     entry = input("📝 What's on your mind today?\n> ")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     journal_entry = {
@@ -131,11 +111,7 @@ def journal():
         json.dump(data, f, indent=2)
     print("✅ Journal entry saved.")
 
-
-#   PLAN COMMAND
-
 def plan():
-    """Prompt user for top 3 goals and save as today's plan."""
     print("📅 Let's set your top 3 goals for today.")
     goals = []
     for i in range(1, 4):
@@ -161,56 +137,27 @@ def plan():
         json.dump(data, f, indent=2)
     print("✅ Today's plan saved.")
 
-
-#   MAIN CLI ENTRY POINT
-
 def main():
-    # --- Reminder/Warning System ---
-    memory_dir = os.path.join("memory")
-    journal_path = os.path.join(memory_dir, "journal.json")
-    plan_path = os.path.join(memory_dir, "daily_plan.json")
-    warnings = []
-    streak_warning = check_streak_break(get_combined_streak)
-    if streak_warning:
-        warnings.append(streak_warning)
-    pending_warning = check_pending_tasks(get_today_plan)
-    if pending_warning:
-        warnings.append(pending_warning)
-    inactivity_warning = check_inactivity(journal_path, plan_path)
-    if inactivity_warning:
-        warnings.append(inactivity_warning)
+    warnings = notify_user()
     for w in warnings:
-        notify_user(w)
-    """Main entry point for the Mensa CLI."""
+        print(w)
+
     streak, missed = get_combined_streak()
     current_date = datetime.now()
-    day_str = current_date.strftime('%A')
-    date_str = current_date.strftime('%d %B %Y')
-    print()
-    print("👋 Welcome to Mensa AI — your mission-aligned assistant.")
+    print("\n👋 Welcome to Mensa AI — your mission-aligned assistant.")
     print(f"🔥 Current Streak: {streak} day{'s' if streak != 1 else ''}")
     if missed:
         print("⚠️ You missed a day! Your streak has been reset.")
-    print(f"📆 Today: {day_str}, {date_str}")
-    print()
-    print("🛠️ Available Commands:")
-    print("  ▶ start         – Set up or reset your session")
-    print("  ▶ plan          – View or edit your upcoming plans")
-    print("  ▶ plan today    – Add today’s top 3 priorities")
-    print("  ▶ checkin       – Mark progress for today’s tasks")
-    print("  ▶ streak        – View your streak status")
-    print("  ▶ summary week  – Weekly performance snapshot")
-    print("  ▶ journal       – Log your mood or reflections")
-    print("  ▶ reminder      – View warnings or missed activity")
-    print()
+    print(f"📆 Today: {current_date.strftime('%A')}, {current_date.strftime('%d %B %Y')}")
+    print("\n🛠️ Available Commands:")
+    for cmd in help_texts:
+        print(f"  ▶ {cmd}")
 
-    # --- Command Input and Validation ---
     if len(sys.argv) > 1:
         command = " ".join(sys.argv[1:]).strip().lower().replace("'", "").replace('"', "")
     else:
         command = input("Which command would you like to run?\n> ").strip().lower().replace("'", "").replace('"', "")
 
-    # --- Help Command ---
     if command.startswith("help"):
         parts = command.split(" ", 1)
         if len(parts) == 2:
@@ -220,35 +167,25 @@ def main():
             print("\n🆘 Usage: help <command>\nExample: help checkin\n")
         return
 
-    # --- Command Validation ---
-    valid_commands = [
-        "start", "plan", "plan today", "checkin",
-        "streak", "summary week", "journal", "help", "reminder"
-    ]
-    if command not in valid_commands:
-        print("⚠️ Unknown command. Try one of:", ", ".join(valid_commands))
+    if command not in help_texts:
+        print("⚠️ Unknown command. Try one of:", ", ".join(help_texts))
         return
 
-    # --- Command Execution ---
     if command == "journal":
         journal()
     elif command == "plan":
         plan()
     elif command == "streak":
-        streak, missed = get_combined_streak()
-        print(f"🔥 Your streak: {streak}")
+        s, missed = get_combined_streak()
+        print(f"🔥 Your streak: {s}")
         if missed:
             print("⚠️ You missed a day! Your streak has been reset.")
     elif command.startswith("plan today"):
-        # Flags
         edit = "--edit" in command
         view = "--view" in command
         today_plan = get_today_plan()
         if view:
-            if today_plan:
-                print(f"Today's plan: {today_plan['tasks']}")
-            else:
-                print("No plan for today.")
+            print("Today's plan:", today_plan['tasks'] if today_plan else "No plan.")
             return
         if today_plan and not edit:
             print("Plan for today already exists. Use --edit to modify or --view to see it.")
@@ -260,27 +197,27 @@ def main():
             if not raw:
                 continue
             if '#' in raw:
-                parts = raw.split('#', 1)
-                task = parts[0].strip()
-                tag = parts[1].strip()
+                task, tag = map(str.strip, raw.split('#', 1))
             else:
-                task = raw
-                tag = ""
+                task, tag = raw, ""
             tasks.append({"task": task, "tag": tag, "done": False})
         add_or_update_today_plan(tasks)
+        update_today_plan({"tasks": tasks})
+        update_last_active()
         print("✅ Today's plan saved.")
     elif command == "checkin":
         today_plan = get_today_plan()
         if not today_plan or not today_plan['tasks']:
             print("⚠️ No plan found for today. Use 'plan today' to create one.")
             return
-        done_list = []
-        for t in today_plan['tasks']:
-            ans = input(f"Did you complete '{t['task']}'? (y/n): ").strip().lower()
-            done_list.append(ans == 'y')
+        done_list = [input(f"Did you complete '{t['task']}'? (y/n): ").strip().lower() == 'y' for t in today_plan['tasks']]
         mark_today_tasks_done(done_list)
         if all(done_list):
             print("✅ All tasks complete! Streak updated.")
+            update_last_active()
+            session = load_session()
+            new_streak = session.get("streak", 0) + 1
+            update_streak(new_streak)
         else:
             print("⚠️ Not all tasks complete. Keep going!")
     elif command == "summary week":
@@ -295,7 +232,6 @@ def main():
                 print(f"{d}: {day['done']}/{day['total']} {check}")
         print(f"{active_days} active day{'s' if active_days != 1 else ''} this week.")
     elif command == "reminder":
-        # Show all current warnings
         if not warnings:
             print("✅ No reminders or warnings. You're on track!")
         else:
@@ -304,8 +240,6 @@ def main():
                 print(w)
     elif command == "start":
         print("Session setup/reset is not yet implemented.")
-    else:
-        print("⚠️ Unknown command. Type 'help <command>' for help.")
 
 if __name__ == "__main__":
     main()
