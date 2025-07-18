@@ -1,0 +1,22 @@
+[
+  {
+    "date": "2025-07-18",
+    "tasks": [
+      {
+        "task": "workout",
+        "tag": "",
+        "done": false
+      },
+      {
+        "task": "eat",
+        "tag": "",
+        "done": false
+      },
+      {
+        "task": "sleep",
+        "tag": "",
+        "done": false
+      }
+    ]
+  }
+]
